@@ -1,0 +1,26 @@
+================================================================================
+NEOBANK DIGITAL - RESUMEN DE TÉRMINOS Y CONDICIONES (VISUALIZACIÓN IN-APP)
+VERSIÓN: 2.0 | ESTADO: ACTIVO para Despliegue en Registro de Usuario
+================================================================================
+
+¡Bienvenido a Neobank Digital! Antes de abrir tu cuenta, lee este resumen obligatorio de las reglas del servicio. Al marcar "Acepto", estás firmando un contrato legal con nosotros.
+
+1. TU CUENTA ES PERSONAL e INTRANSFERIBLE
+Tú eres el único responsable de lo que ocurra con tu usuario, PIN, contraseña y huella digital/FaceID. Nunca compartas tus accesos; Neobank jamás te pedirá contraseñas por teléfono o WhatsApp.
+
+2. VERIFICACIÓN DE IDENTIDAD (KYC)
+Para activar tu cuenta, utilizaremos tu cámara para una validación biométrica facial en tiempo real y verificaremos tus documentos oficiales. Si los datos no coinciden, la cuenta se bloqueará automáticamente por seguridad.
+
+3. USO CORRECTO DEL DINERO
+Aceptas que todo el dinero que ingreses a Neobank proviene de fuentes legales (salario, ahorros legítimos, ventas declaradas). No prestes tu cuenta para recibir transferencias de desconocidos.
+
+4. ¿CUÁNDO PODEMOS CERRAR TU CUENTA?
+Neobank puede suspender o cerrar tu acceso inmediatamente si:
+- Detectamos actividad sospechosa relacionada con fraudes o estafas.
+- Usas datos falsos al registrarte.
+- No actualizas tus documentos cuando el equipo de Cumplimiento te lo solicite.
+
+5. ACTUALIZACIONES
+Podemos cambiar estas reglas o nuestras tarifas notificándote con al menos 5 días de anticipación mediante una alerta en esta app o a tu correo electrónico.
+
+[ BOTÓN: LEER CONTRATO COMPLETO PDF ]  [ BOTÓN SELECCIONABLE: ACEPTO LOS TÉRMINOS ]

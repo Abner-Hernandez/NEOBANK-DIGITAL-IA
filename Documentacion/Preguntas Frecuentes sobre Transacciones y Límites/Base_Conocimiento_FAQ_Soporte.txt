@@ -1,0 +1,27 @@
+================================================================================
+BASE DE CONOCIMIENTO INTERNA - CUSTOMER SERVICE & MESA DE AYUDA
+CÓDIGO: FAQ-CS-03 | DOCUMENTO EDITABLE PARA AGENTES DE ATENCIÓN
+TEMA: TRANSACCIONES, REBOTES ACH Y SOLICITUD DE AMPLIACIÓN DE LÍMITES
+================================================================================
+
+P1: El cliente llama porque su transferencia ACH aparece como "Rechazada / Devuelta". ¿Qué responder?
+---------------------------------------------------------------------------------------------------
+RESPUESTA AL CLIENTE: "Estimado cliente, las devoluciones en transferencias ACH ocurren generalmente por inconsistencias en los datos del banco receptor, como un número de cuenta incorrecto o que el tipo de cuenta no coincide con el registro. El dinero ha sido reembolsado a su saldo de Neobank."
+ACCIÓN DEL AGENTE INTERNO: Verificar en el Core Bancario el código del rechazo. Si el código es '05-Cuenta Inexistente' o '12-Nombre No Coincide', instruir al cliente a eliminar el beneficiario en su app y volverlo a registrar cuidadosamente.
+
+P2: ¿Cómo puede un cliente subir de Nivel 1 (Simplificada) a Nivel 2 (Tradicional) si la app le dice que excedió su cupo?
+---------------------------------------------------------------------------------------------------
+RESPUESTA AL CLIENTE: "Para ampliar sus límites mensuales de transacciones, solo debe ingresar a Perfil > Aumentar mis límites dentro de la aplicación. El sistema le solicitará adjuntar una fotografía nítida de un recibo de servicios residenciales reciente."
+ACCIÓN DEL AGENTE INTERNO: Revisar la cola de solicitudes en el panel administrativo "KYC-Review". Validar que la dirección del recibo coincida con el DPI. El tiempo de aprobación no debe exceder las 2 horas hábiles.
+
+P3: ¿Cuál es el tiempo de liquidación de las transferencias en Neobank Digital?
+---------------------------------------------------------------------------------------------------
+RESPUESTA AL CLIENTE: 
+- Transferencias Internas (entre usuarios Neobank): Inmediatas (24/7/365).
+- Transferencias ACH Inmediatas: Máximo 15 minutos (Sujeto a disponibilidad del banco receptor).
+- Transferencias ACH Tradicionales: Dependen de los ciclos de la cámara de compensación nacional (si se hace antes de las 11:00 AM, se acredita por la tarde).
+
+P4: El cliente indica que necesita realizar una transferencia única mayor a su límite diario. ¿Es posible?
+---------------------------------------------------------------------------------------------------
+RESPUESTA AL CLIENTE: "Por políticas de seguridad y protección de sus fondos, los límites diarios automáticos no pueden ser sobrepasados desde la app. Sin embargo, para transacciones especiales de alto valor, podemos coordinar una excepción temporal."
+ACCIÓN DEL AGENTE INTERNO: Escalar el caso al área de Cumplimiento y Riesgo con el formulario "EX-049", adjuntando el justificante de la transacción (ej. factura de compraventa de vehículo o promesa de contrato) para la autorización manual del CISO.

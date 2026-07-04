@@ -1,0 +1,34 @@
+================================================================================
+PLAYBOOK INTERNO DE RESPUESTA OPERATIVA - COMPLIANCE & CYBERSECURITY
+NEOBANK DIGITAL, S.A. | CÓDIGO: PB-SEC-009 | CONFIDENCIALIDAD: ESTRICTA
+TEMA: PROTOCOLO TÉCNICO DE MITIGACIÓN ANTE PHISHING E INGENIERÍA INVERSA
+================================================================================
+
+1. ALCANCE GENERAL Y PROPÓSITO
+Este manual técnico editable de operaciones establece los pasos detallados que el equipo del Centro de Operaciones de Seguridad (SOC) y el personal de Soporte deben ejecutar de forma coordinada cuando se detecten campañas activas de Phishing dirigidas a los usuarios, o intentos de ingeniería inversa contra las APIs expuestas de Neobank Digital.
+
+2. PROTOCOLO DE REACCIÓN ANTE ATAQUES DE PHISHING Y CLONACIÓN DE APPS
+Cuando un cliente o los sistemas de monitoreo de marcas detecten un sitio web fraudulento o un archivo APK modificado maliciosamente fuera de las tiendas oficiales:
+
+Fase A: Validación y Triage (Tiempo de Ejecución: < 15 Minutos)
+- El analista de ciberseguridad debe capturar la evidencia técnica: registrar la dirección URL maliciosa, la dirección IP del servidor que aloja la estafa, y las cadenas de texto del formulario web atacante.
+- Analizar si el sitio fraudulento cuenta con un certificado SSL válido para agregar estos datos al reporte forense.
+
+Fase B: Bloqueo de Infraestructura y Derribo (Tiempo de Ejecución: < 60 Minutos)
+- Enviar de forma automatizada un reporte técnico "Takedown Request" a los proveedores de hosting (ej. AWS, Cloudflare, DigitalOcean) y registradores de dominios para la desconexión del servidor atacante.
+- Agregar las URLs fraudulentas identificadas a las listas de bloqueo de navegación segura de Google Safe Browsing y Microsoft SmartScreen para alertar a los navegadores web.
+
+Fase C: Contención de Credenciales de Usuarios (Tiempo de Ejecución: < 30 Minutos)
+- Correr scripts automatizados en la base de datos para identificar si algún usuario introdujo datos en la ventana de tiempo del ataque.
+- Forzar de manera preventiva un reset global de contraseñas, tokens y desvincular los dispositivos activos de todos aquellos usuarios que se consideren potencialmente comprometidos.
+
+3. PROTOCOLO ANTE INTENTOS DE INGENIERÍA INVERSA Y EXTRACCIÓN DE APIS
+Si las herramientas de monitoreo en el API Gateway (ej. Kong, AWS API Gateway) detectan un volumen inusual de peticiones que busquen descifrar la lógica interna del Core:
+
+Fase A: Bloqueo de Perímetro Inmediato
+- Inhabilitar de forma permanente la dirección IP atacante y revocar todos los JSON Web Tokens (JWT) asociados a la sesión web origen del escaneo.
+- Bloquear de forma masiva el identificador de hardware UUID del dispositivo de pruebas involucrado en la vulneración.
+
+Fase B: Ofuscación y Parche de Emergencia
+- Modificar las firmas criptográficas de las APIs afectadas e inyectar variables de ofuscación de código a través de los canales CI/CD de desarrollo para romper los scripts automatizados del atacante.
+- Desplegar una actualización obligatoria forzada (Hotfix) de la aplicación móvil en Google Play Store y Apple App Store que invalide las llamadas al API de versiones previas en desuso.

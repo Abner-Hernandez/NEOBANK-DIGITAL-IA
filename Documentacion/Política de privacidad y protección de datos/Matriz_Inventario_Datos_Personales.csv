@@ -1,0 +1,7 @@
+﻿ID_MATRIZ,CATEGORIA_DATOS,NOMBRE_TABLA_BD,TIPO_ALMACENAMIENTO,TIEMPO_RETENCION,RESPONSABLE_CUSTODIA,BASE_LEGAL_RETENCION
+DB-001,Identificación Biométrica,tbl_user_biometrics,AWS S3 Cifrado (AES-256),10 Años (Post-Cierre),Oficial de Cumplimiento / KYC,Ley Contra el Lavado de Dinero / Regulación IVE
+DB-002,Credenciales y Tokens,tbl_auth_credentials,AWS Secrets Manager / RDS,Mientras la cuenta esté activa,Líder de Ciberseguridad / CISO,Contrato de Adhesión / Operación del Servicio
+DB-003,Historial Transaccional,tbl_core_transactions,PostgreSQL Cluster Protegido,10 Años (Obligatorio Financiero),Director de Finanzas / Contabilidad,Código de Comercio & Normativas Bancarias
+DB-004,Geolocalización en Operaciones,tbl_fraud_geo_logs,NoSQL MongoDB / DynamoDB,5 Años,Gerente de Prevención de Fraudes,Normativa de Canales Digitales Bancarios
+DB-005,Logs de Auditoría de Soporte,tbl_crm_agent_actions,CloudWatch Logs / Retención Fría,3 Años,Director de Operaciones / COO,Auditoría Interna Corporativa e ISO 27001
+DB-006,Datos de Contacto Comercial,tbl_marketing_leads,Salesforce CRM Encapsulado,Hasta revocación de consentimiento,Gerente de Crecimiento / Marketing,Consentimiento Explícito del Usuario (Opt-In)

@@ -1,0 +1,49 @@
+================================================================================
+DOCUMENTO INTERNO DE OPERACIONES - NEOBANK DIGITAL, S.A.
+CÓDIGO: PR-SG-004 | VERSIÓN: 1.2 | CONFIDENCIALIDAD: RESTRINGIDA
+TITULO: PROCEDIMIENTO OPERATIVO ESTÁNDAR: RESPUESTA A INCIDENTES Y BRECHAS DE DATOS
+================================================================================
+
+1. OBJETIVO
+Establecer un protocolo técnico, legal y administrativo unificado para reaccionar de manera inmediata y eficiente ante cualquier evento de seguridad cibernética que comprometa la confidencialidad, integridad o disponibilidad de los datos personales y financieros de los usuarios de Neobank Digital.
+
+2. EQUIPO RESPONSABLE (COMITÉ DE CRISIS DE SEGURIDAD - CCS)
+El comité está conformado de manera mandatoria por las siguientes posiciones de la organización:
+- Director de Seguridad de la Información (CISO) - Líder de la mitigación técnica.
+- Oficial de Cumplimiento (Compliance Officer) - Enlace regulatorio y legal.
+- Director de Operaciones (COO) - Coordinador de plataformas e infraestructura.
+- Gerente de Relaciones Públicas - Manejo de la comunicación institucional externa.
+
+3. FASES DEL PROTOCOLO DE REACCIÓN
+
+FASE I: IDENTIFICACIÓN Y REGISTRO (Tiempo estimado: T0 a T+2 horas)
+--------------------------------------------------------------------------------
+- Cualquier alerta procedente del SOC (Security Operations Center), WAF o reportes internos de anomalías en bases de datos que apunten a accesos no autorizados debe escalarse inmediatamente al CISO.
+- El equipo de TI procederá a congelar los registros de logs del sistema afectado para preservar las evidencias informáticas forenses.
+- Se clasificará la gravedad del incidente (Baja, Media, Alta, Crítica) basándose en el volumen de datos expuestos y el tipo de clientes afectados.
+
+FASE II: CONTENCIÓN Y AISLAMIENTO (Tiempo estimado: T+2 a T+6 horas)
+--------------------------------------------------------------------------------
+- Aislamiento inmediato de los servidores, microservicios o segmentos de red (VPC) comprometidos.
+- Revocación total e inmediata de credenciales, llaves API, tokens comprometidos de la plataforma o de proveedores terceros.
+- Implementación de parches de emergencia en el código de producción o reconfiguración de reglas en el firewall de aplicaciones.
+
+FASE III: INVESTIGACIÓN Y ERRADICACIÓN (Tiempo estimado: T+6 a T+24 horas)
+--------------------------------------------------------------------------------
+- Ejecución de análisis forense digital en los contenedores e instancias comprometidas para identificar el vector de ataque original (ej. Inyección SQL, filtración de llaves, phishing).
+- Eliminación completa del malware o erradicación del vector de vulnerabilidad.
+- Restauración de copias de seguridad de datos (Backups) verificadas e íntegras, si hubiese existido destrucción o alteración maliciosa de información.
+
+FASE IV: NOTIFICACIÓN REGULATORIA Y A USUARIOS (Tiempo estimado: T+24 a T+72 horas)
+--------------------------------------------------------------------------------
+- Conforme a directrices internacionales y de la Superintendencia, el Oficial de Cumplimiento notificará por escrito a la autoridad reguladora los pormenores de la brecha.
+- Si el análisis forense demuestra riesgo de fraude o robo de identidad para los usuarios, se enviará una comunicación transparente vía correo electrónico y canales internos detallando:
+   * Qué categorías de datos se vieron afectadas.
+   * Qué medidas técnicas inmediatas tomó la Fintech.
+   * Acciones recomendadas al usuario (Cambio de contraseñas, activación de MFA).
+
+FASE V: LECCIONES APRENDIDAS (Tiempo estimado: Posterior a los 5 días hábiles)
+--------------------------------------------------------------------------------
+- Reunión obligatoria del Comité de Crisis para documentar las fallas estructurales.
+- Actualización de políticas de desarrollo seguro y matrices de riesgo técnico.
+- Emisión del Informe Final de Cierre del Incidente enviado al Consejo de Administración.

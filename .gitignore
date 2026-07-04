@@ -1,0 +1,13 @@
+# Ignorar el entorno virtual (ocupa mucho espacio y no es portable)
+venv/
+.venv/
+
+# Ignorar credenciales y llaves secretas
+.env
+
+# Ignorar la base de datos vectorial local (se regenerará en la nube)
+chroma_db/
+
+# Ignorar archivos temporales de Python
+__pycache__/
+*.pyc

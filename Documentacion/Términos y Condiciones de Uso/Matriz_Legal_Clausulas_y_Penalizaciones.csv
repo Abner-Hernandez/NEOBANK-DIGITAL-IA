@@ -1,0 +1,6 @@
+﻿ID_CLAUSULA,NOMBRE_CLAUSULA,NIVEL_RIESGO,IMPLICACION_OPERATIVA,ACCION_POR_INCUMPLIMIENTO,TIEMPO_DE_EJECUCION
+CL-01,Uso Personal de Credenciales,ALTO,El usuario cede el control de su app o PIN a un tercero.,Suspensión temporal del canal digital y Tarjeta,Inmediato (Automatizado por SOC)
+CL-02,Origen de Fondos y PLD,CRÍTICO,Fondos no justificados o fuera del perfil transaccional declarado.,Bloqueo preventivo de fondos y reporte a la IVE / Regulador,Menor a 2 horas desde la alerta
+CL-03,Actualización de Identidad,MEDIO,Vencimiento del Documento de Identidad (DPI/Pasaporte).,Restricción para realizar transferencias salientes,Al cumplirse 15 días del aviso
+CL-04,Ingeniería Inversa y Ciberataques,CRÍTICO,Uso de scripts o intentos de vulnerar las APIs de la Fintech.,Rescisión total del contrato y acciones legales penales,Inmediato (Bloqueo total de IP/UUID)
+CL-05,Abuso del Canal de Soporte,BAJO,Maltrato o uso de lenguaje soez con los agentes de atención.,Aviso de advertencia por correo electrónico,24 horas hábiles
