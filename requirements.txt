@@ -1,0 +1,18 @@
+# === Alura Agente — Dependencias Fase 1 (Ingesta y Procesamiento) ===
+# Versiones fijadas deliberadamente para builds reproducibles en OCI.
+# Se irán agregando dependencias por fase (LangChain agent, FAISS, etc.)
+
+# --- Core ---
+python-dotenv==1.0.1
+
+# --- LangChain (núcleo + integraciones) ---
+langchain==0.3.7
+langchain-community==0.3.5
+langchain-core==0.3.15
+
+# --- Procesamiento de documentos ---
+pypdf==5.1.0
+pandas==2.2.3
+
+# --- Utilidades ---
+unstructured==0.16.5  # soporte adicional de parsing, usado en fases posteriores
