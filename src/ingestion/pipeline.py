@@ -42,7 +42,7 @@ def run_ingestion(raw_dir: Path | None = None) -> List[Document]:
     archivos_no_soportados: List[str] = []
     archivos_con_error: List[str] = []
 
-    archivos = [f for f in raw_root.rglob("*") if f.is_file()]
+    archivos = sorted(f for f in raw_root.rglob("*") if f.is_file())
     logger.info(f"Iniciando ingesta: {len(archivos)} archivo/s encontrado/s en {raw_root}")
 
     for filepath in archivos:
