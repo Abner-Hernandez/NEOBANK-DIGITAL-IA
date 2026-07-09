@@ -1,42 +1,37 @@
 """
 vectorstore.py
 --------------
-Construccion, persistencia y carga del indice vectorial FAISS.
+Construccion, sincronizacion, persistencia y carga del indice FAISS.
 
-Diseno clave: la construccion (build_vectorstore) es una operacion offline,
-costosa, que se corre desde scripts/build_index.py. La carga (load_vectorstore)
-es la operacion runtime, rapida, que usa la API en cada arranque.
+Dos modos de indexacion:
+- sync_vectorstore(): INCREMENTAL (recomendado). Compara hashes de archivo
+  contra el manifest y solo embebe documentos nuevos o modificados. Es el
+  modo por defecto de scripts/build_index.py.
+- build_vectorstore(): RECONSTRUCCION COMPLETA desde cero. Util para el
+  primer build, o si se quiere forzar un re-index total (--rebuild).
 
-RESILIENCIA ANTE RATE LIMITS (free tier de Gemini):
-El free tier de embeddings tiene un limite bajo de requests por minuto.
-Con corpus de cientos de fragmentos, generar embeddings uno tras otro sin
-control dispara errores 429 (RESOURCE_EXHAUSTED) a mitad de camino.
-
-Estrategia de tres capas:
-1. Procesamiento por lotes pequenos con pausa proactiva entre ellos
-   (evita disparar el limite en primer lugar, en vez de solo reaccionar).
-2. Reintentos con backoff exponencial ante 429, sin reintentar otros errores.
-3. Checkpointing: el indice se guarda en disco tras cada lote exitoso, y si
-   el proceso se corta, la siguiente corrida retoma desde el ultimo lote
-   guardado en vez de volver a embeber todo desde cero.
+Ambos comparten la misma logica de resiliencia ante rate limits del free
+tier de Gemini: procesamiento por lotes pequenos, pausa proactiva entre
+lotes, reintentos con backoff exponencial ante 429, y checkpointing en
+disco para no perder progreso si el proceso se corta a mitad de camino.
 """
 
-import json
 import time
 from pathlib import Path
 from typing import List, Optional
 
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
-from tenacity import (
-    retry,
-    retry_if_exception,
-    stop_after_attempt,
-    wait_exponential,
-)
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from src.config import settings
 from src.rag.embeddings import get_embeddings
+from src.rag.manifest import (
+    MANIFEST_FILENAME,
+    compute_file_hash,
+    load_manifest,
+    save_manifest,
+)
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -47,12 +42,7 @@ CHECKPOINT_FILENAME = "_checkpoint.json"
 
 
 def _es_error_de_rate_limit(exc: BaseException) -> bool:
-    """
-    Determina si una excepcion corresponde a un 429/RESOURCE_EXHAUSTED de
-    la API de Gemini. Solo reintentamos ESTE tipo de error: otros errores
-    (ej. API key invalida, modelo inexistente) deben fallar de inmediato
-    en vez de reintentarse ciegamente 6 veces perdiendo tiempo.
-    """
+    """Solo reintentamos 429/RESOURCE_EXHAUSTED; otros errores fallan de inmediato."""
     mensaje = str(exc).lower()
     return (
         "429" in mensaje
@@ -71,33 +61,169 @@ def _es_error_de_rate_limit(exc: BaseException) -> bool:
 def _embed_batch_con_reintentos(
     vectorstore: Optional[FAISS], batch: List[Document], embeddings
 ) -> FAISS:
-    """
-    Embebe un lote de documentos. Si vectorstore es None, crea uno nuevo
-    (primer lote); si ya existe, agrega el lote al indice existente.
-    Reintenta con backoff exponencial SOLO ante errores de rate limit.
-    """
+    """Embebe un lote; crea el vectorstore si no existe aún, o agrega al existente."""
     if vectorstore is None:
         return FAISS.from_documents(batch, embeddings)
     vectorstore.add_documents(batch)
     return vectorstore
 
 
-def _cargar_checkpoint(checkpoint_path: Path) -> int:
-    """Retorna cuantos documentos ya fueron indexados en una corrida anterior."""
-    if not checkpoint_path.exists():
-        return 0
-    try:
-        data = json.loads(checkpoint_path.read_text(encoding="utf-8"))
-        return data.get("documentos_procesados", 0)
-    except (json.JSONDecodeError, OSError):
-        logger.warning("Checkpoint corrupto o ilegible, se ignora y se reinicia desde 0")
-        return 0
-
-
-def _guardar_checkpoint(checkpoint_path: Path, documentos_procesados: int) -> None:
-    checkpoint_path.write_text(
-        json.dumps({"documentos_procesados": documentos_procesados}), encoding="utf-8"
+def _procesar_lotes(
+    vectorstore: Optional[FAISS],
+    pendientes: List[Document],
+    embeddings,
+    target_path: Path,
+    checkpoint_path: Path,
+    batch_size: int,
+    delay_seconds: float,
+    ya_procesados: int = 0,
+) -> FAISS:
+    """
+    Núcleo compartido de indexación por lotes con checkpointing. Usado tanto
+    por build_vectorstore (corpus completo) como por sync_vectorstore
+    (solo documentos nuevos/modificados).
+    """
+    total_lotes = (len(pendientes) + batch_size - 1) // batch_size
+    logger.info(
+        f"Indexando {len(pendientes)} documento/s en {total_lotes} lote/s "
+        f"de tamaño {batch_size} (pausa de {delay_seconds}s entre lotes)"
     )
+
+    procesados = ya_procesados
+    for i in range(0, len(pendientes), batch_size):
+        lote = pendientes[i : i + batch_size]
+        numero_lote = (i // batch_size) + 1
+
+        try:
+            vectorstore = _embed_batch_con_reintentos(vectorstore, lote, embeddings)
+        except Exception as exc:
+            if vectorstore is not None:
+                save_vectorstore(vectorstore, target_path)
+            logger.error(
+                f"Fallo irrecuperable en lote {numero_lote}/{total_lotes} tras reintentos. "
+                f"Progreso guardado: {procesados} documento/s de este batch. Error: {exc}"
+            )
+            raise
+
+        procesados += len(lote)
+        save_vectorstore(vectorstore, target_path)
+
+        logger.info(f"Lote {numero_lote}/{total_lotes} indexado | progreso: {procesados}")
+
+        if i + batch_size < len(pendientes):
+            time.sleep(delay_seconds)
+
+    return vectorstore  # type: ignore[return-value]
+
+
+def _get_ids_for_source(vectorstore: FAISS, source: str) -> List[str]:
+    """Encuentra los ids internos de FAISS de todos los chunks de un archivo fuente."""
+    return [
+        doc_id
+        for doc_id, doc in vectorstore.docstore._dict.items()  # type: ignore[attr-defined]
+        for _ in [None]
+        if doc.metadata.get("source") == source
+    ]
+
+
+def sync_vectorstore(
+    chunks: List[Document],
+    vectorstore_path: Optional[Path] = None,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    delay_seconds: float = DEFAULT_DELAY_BETWEEN_BATCHES_SECONDS,
+) -> FAISS:
+    """
+    Sincroniza el indice FAISS de forma INCREMENTAL: solo embebe documentos
+    cuyo archivo fuente es nuevo o cambió (por hash), reutiliza el resto,
+    y borra del indice los chunks de archivos que ya no existen.
+
+    Args:
+        chunks: TODOS los chunks del corpus actual (salida de chunk_documents,
+            sobre el corpus completo — la función internamente decide cuáles
+            de estos ya están indexados y cuáles faltan).
+        vectorstore_path: ubicación del índice persistido.
+        batch_size, delay_seconds: ver _procesar_lotes.
+
+    Returns:
+        El FAISS vectorstore actualizado.
+    """
+    target_path = vectorstore_path or settings.VECTORSTORE_DIR
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path = target_path.parent / MANIFEST_FILENAME
+    checkpoint_path = target_path.parent / CHECKPOINT_FILENAME
+
+    manifest = load_manifest(manifest_path)
+    embeddings = get_embeddings()
+
+    vectorstore: Optional[FAISS] = None
+    if target_path.exists():
+        vectorstore = FAISS.load_local(
+            str(target_path), embeddings, allow_dangerous_deserialization=True
+        )
+
+    # Agrupar chunks actuales por archivo fuente
+    chunks_por_fuente: dict[str, List[Document]] = {}
+    for chunk in chunks:
+        fuente = chunk.metadata.get("source", "desconocida")
+        chunks_por_fuente.setdefault(fuente, []).append(chunk)
+
+    fuentes_actuales = set(chunks_por_fuente)
+    fuentes_en_manifest = set(manifest)
+
+    nuevos = [f for f in fuentes_actuales if f not in manifest]
+    cambiados = [
+        f
+        for f in fuentes_actuales
+        if f in manifest and compute_file_hash(Path(f)) != manifest[f]["hash"]
+    ]
+    eliminados = list(fuentes_en_manifest - fuentes_actuales)
+    sin_cambios = fuentes_actuales - set(nuevos) - set(cambiados)
+
+    logger.info(
+        f"Diagnóstico de cambios: {len(nuevos)} nuevo/s | {len(cambiados)} modificado/s | "
+        f"{len(eliminados)} eliminado/s | {len(sin_cambios)} sin cambios (se omiten)"
+    )
+
+    # Borrar del índice: chunks viejos de archivos modificados + archivos eliminados
+    if vectorstore is not None:
+        for fuente in cambiados + eliminados:
+            ids_viejos = _get_ids_for_source(vectorstore, fuente)
+            if ids_viejos:
+                vectorstore.delete(ids=ids_viejos)
+                logger.info(f"Eliminados {len(ids_viejos)} chunk/s viejos de: {fuente}")
+
+    # Reunir chunks a embeber: solo nuevos + modificados
+    pendientes: List[Document] = []
+    for fuente in nuevos + cambiados:
+        pendientes.extend(chunks_por_fuente[fuente])
+
+    if pendientes:
+        vectorstore = _procesar_lotes(
+            vectorstore, pendientes, embeddings, target_path, checkpoint_path,
+            batch_size, delay_seconds,
+        )
+    elif vectorstore is not None and eliminados:
+        # Solo hubo eliminaciones, sin nada nuevo que embeber: igual persistimos
+        save_vectorstore(vectorstore, target_path)
+
+    if vectorstore is None:
+        raise ValueError(
+            "No hay documentos para indexar y no existe un índice previo. "
+            "Verifica que Documentacion/ tenga archivos."
+        )
+
+    # Actualizar manifest: agregar nuevos/modificados, quitar eliminados
+    for fuente in nuevos + cambiados:
+        manifest[fuente] = {"hash": compute_file_hash(Path(fuente))}
+    for fuente in eliminados:
+        manifest.pop(fuente, None)
+    save_manifest(manifest_path, manifest)
+
+    if not pendientes and not eliminados:
+        logger.info("Índice ya estaba al día — ningún archivo nuevo o modificado.")
+
+    checkpoint_path.unlink(missing_ok=True)
+    return vectorstore
 
 
 def build_vectorstore(
@@ -107,116 +233,47 @@ def build_vectorstore(
     vectorstore_path: Optional[Path] = None,
 ) -> FAISS:
     """
-    Construye (o retoma) un indice FAISS a partir de los chunks del corpus,
-    procesando en lotes pequenos con checkpointing para ser resiliente a
-    los limites del free tier de Gemini.
-
-    Si una corrida anterior fue interrumpida, esta funcion detecta el
-    checkpoint guardado y continua desde el primer documento no procesado,
-    en vez de volver a gastar cuota re-embebiendo documentos ya indexados.
-
-    Args:
-        documents: chunks del corpus (deben venir en orden deterministico).
-        batch_size: cuantos documentos se embeben por llamada a la API.
-        delay_seconds: pausa proactiva entre lotes para no saturar el RPM.
-        vectorstore_path: donde se persiste el indice incrementalmente.
-
-    Returns:
-        El FAISS vectorstore completo, con todos los documentos indexados.
+    Reconstruye el índice FAISS DESDE CERO con todos los documentos dados,
+    ignorando cualquier manifest o índice previo. Uso: primer build, o
+    forzar un re-index total (ej. tras cambiar el modelo de embeddings).
+    Para el uso cotidiano (agregar/modificar documentos), usa sync_vectorstore.
     """
     if not documents:
         raise ValueError("No se puede construir un vectorstore sin documentos")
 
     target_path = vectorstore_path or settings.VECTORSTORE_DIR
     target_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path = target_path.parent / MANIFEST_FILENAME
     checkpoint_path = target_path.parent / CHECKPOINT_FILENAME
 
     embeddings = get_embeddings()
-
-    inicio = _cargar_checkpoint(checkpoint_path)
-    vectorstore: Optional[FAISS] = None
-
-    if inicio > 0 and target_path.exists():
-        logger.info(
-            f"Checkpoint encontrado: retomando desde el documento {inicio}/{len(documents)} "
-            f"(evita re-embeber lo ya indexado)"
-        )
-        vectorstore = FAISS.load_local(
-            str(target_path), embeddings, allow_dangerous_deserialization=True
-        )
-    elif inicio > 0:
-        logger.warning(
-            "Checkpoint indica progreso previo pero no se encontró el índice en disco. "
-            "Reiniciando desde 0."
-        )
-        inicio = 0
-
-    pendientes = documents[inicio:]
-    if not pendientes:
-        logger.info("Todos los documentos ya estaban indexados según el checkpoint.")
-        return vectorstore  # type: ignore[return-value]
-
-    total_lotes = (len(pendientes) + batch_size - 1) // batch_size
-    logger.info(
-        f"Indexando {len(pendientes)} documento/s restantes en {total_lotes} lote/s "
-        f"de tamaño {batch_size} (pausa de {delay_seconds}s entre lotes)"
+    vectorstore = _procesar_lotes(
+        None, documents, embeddings, target_path, checkpoint_path,
+        batch_size, delay_seconds,
     )
 
-    procesados = inicio
-    for i in range(0, len(pendientes), batch_size):
-        lote = pendientes[i : i + batch_size]
-        numero_lote = (i // batch_size) + 1
+    # Reconstruye el manifest desde cero para que quede consistente con sync futuro
+    manifest = {}
+    for doc in documents:
+        fuente = doc.metadata.get("source", "desconocida")
+        if fuente not in manifest and Path(fuente).exists():
+            manifest[fuente] = {"hash": compute_file_hash(Path(fuente))}
+    save_manifest(manifest_path, manifest)
 
-        try:
-            vectorstore = _embed_batch_con_reintentos(vectorstore, lote, embeddings)
-        except Exception as exc:
-            # Agotamos los reintentos o fue un error no relacionado a rate limit.
-            # Guardamos el progreso hecho hasta ahora antes de propagar el error,
-            # así la próxima corrida retoma desde aquí en vez de perder todo.
-            if vectorstore is not None:
-                save_vectorstore(vectorstore, target_path)
-                _guardar_checkpoint(checkpoint_path, procesados)
-            logger.error(
-                f"Fallo irrecuperable en lote {numero_lote}/{total_lotes} tras reintentos. "
-                f"Progreso guardado: {procesados} documento/s. Error: {exc}"
-            )
-            raise
-
-        procesados += len(lote)
-        save_vectorstore(vectorstore, target_path)
-        _guardar_checkpoint(checkpoint_path, procesados)
-
-        logger.info(
-            f"Lote {numero_lote}/{total_lotes} indexado | "
-            f"progreso total: {procesados}/{len(documents)}"
-        )
-
-        # Pausa proactiva entre lotes (no aplica tras el último lote)
-        if i + batch_size < len(pendientes):
-            time.sleep(delay_seconds)
-
-    # Indexación completa: limpiamos el checkpoint para que la próxima
-    # ejecución de build_index (con documentos nuevos) empiece limpia.
     checkpoint_path.unlink(missing_ok=True)
-    logger.info("Índice FAISS construido y guardado exitosamente (checkpoint limpiado)")
-
-    return vectorstore  # type: ignore[return-value]
+    logger.info("Índice FAISS reconstruido completamente desde cero")
+    return vectorstore
 
 
 def save_vectorstore(vectorstore: FAISS, path: Optional[Path] = None) -> None:
-    """Persiste el indice FAISS en disco (carpeta con index.faiss + index.pkl)."""
+    """Persiste el índice FAISS en disco (carpeta con index.faiss + index.pkl)."""
     target = path or settings.VECTORSTORE_DIR
     target.parent.mkdir(parents=True, exist_ok=True)
     vectorstore.save_local(str(target))
 
 
 def load_vectorstore(path: Optional[Path] = None) -> FAISS:
-    """
-    Carga un indice FAISS previamente construido. Requiere
-    allow_dangerous_deserialization=True porque FAISS usa pickle
-    internamente. Es seguro aqui porque el indice lo generamos
-    nosotros mismos (no proviene de una fuente externa no confiable).
-    """
+    """Carga un índice FAISS previamente construido."""
     target = path or settings.VECTORSTORE_DIR
 
     if not target.exists():
@@ -230,5 +287,4 @@ def load_vectorstore(path: Optional[Path] = None) -> FAISS:
         str(target), embeddings, allow_dangerous_deserialization=True
     )
     logger.info(f"Índice FAISS cargado desde: {target}")
-
     return vectorstore
