@@ -1,13 +1,30 @@
-# Ignorar el entorno virtual (ocupa mucho espacio y no es portable)
-venv/
-.venv/
-
-# Ignorar credenciales y llaves secretas
+# --- Entornos y secretos ---
 .env
+*.env
+!.env.example
 
-# Ignorar la base de datos vectorial local (se regenerará en la nube)
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# --- Vector store (se regenera con `python -m scripts.build_index`, no se versiona) ---
+vectorstore/
+faiss_index/
 chroma_db/
 
-# Ignorar archivos temporales de Python
-__pycache__/
-*.pyc
+# --- Logs (el contenido no se versiona; la carpeta se preserva con .gitkeep) ---
+logs/*.log
+
+# --- Sistema operativo / IDE ---
+.DS_Store
+.vscode/
+.idea/
+
+# --- Docker (para fases posteriores) ---
+*.pid
