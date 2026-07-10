@@ -168,19 +168,40 @@ def sync_vectorstore(
         chunks_por_fuente.setdefault(fuente, []).append(chunk)
 
     fuentes_actuales = set(chunks_por_fuente)
-    fuentes_en_manifest = set(manifest)
 
-    nuevos = [f for f in fuentes_actuales if f not in manifest]
+    # FUENTE DE VERDAD para "¿ya está indexado?": el propio vectorstore, NO el
+    # manifest. El manifest solo sirve para detectar CAMBIOS (via hash) en
+    # archivos que sabemos que ya están indexados. Si un archivo ya está en
+    # el vectorstore pero el manifest no tiene su hash (ej. manifest perdido,
+    # o índice construido con una versión anterior del código), se hace
+    # "bootstrap": se registra su hash actual SIN re-embeberlo, en vez de
+    # tratarlo como nuevo y duplicarlo.
+    fuentes_ya_indexadas: set[str] = set()
+    if vectorstore is not None:
+        fuentes_ya_indexadas = {
+            doc.metadata.get("source")
+            for doc in vectorstore.docstore._dict.values()  # type: ignore[attr-defined]
+        }
+
+    fuentes_conocidas = fuentes_ya_indexadas | set(manifest)
+
+    nuevos = [f for f in fuentes_actuales if f not in fuentes_ya_indexadas]
+    bootstrap = [
+        f for f in fuentes_actuales if f in fuentes_ya_indexadas and f not in manifest
+    ]
     cambiados = [
         f
         for f in fuentes_actuales
-        if f in manifest and compute_file_hash(Path(f)) != manifest[f]["hash"]
+        if f in fuentes_ya_indexadas
+        and f in manifest
+        and compute_file_hash(Path(f)) != manifest[f]["hash"]
     ]
-    eliminados = list(fuentes_en_manifest - fuentes_actuales)
-    sin_cambios = fuentes_actuales - set(nuevos) - set(cambiados)
+    eliminados = list(fuentes_conocidas - fuentes_actuales)
+    sin_cambios = fuentes_actuales - set(nuevos) - set(cambiados) - set(bootstrap)
 
     logger.info(
         f"Diagnóstico de cambios: {len(nuevos)} nuevo/s | {len(cambiados)} modificado/s | "
+        f"{len(bootstrap)} recuperado/s en manifest (ya indexados, sin re-embeber) | "
         f"{len(eliminados)} eliminado/s | {len(sin_cambios)} sin cambios (se omiten)"
     )
 
@@ -192,7 +213,7 @@ def sync_vectorstore(
                 vectorstore.delete(ids=ids_viejos)
                 logger.info(f"Eliminados {len(ids_viejos)} chunk/s viejos de: {fuente}")
 
-    # Reunir chunks a embeber: solo nuevos + modificados
+    # Reunir chunks a embeber: solo nuevos + modificados (bootstrap NO se re-embebe)
     pendientes: List[Document] = []
     for fuente in nuevos + cambiados:
         pendientes.extend(chunks_por_fuente[fuente])
@@ -212,8 +233,8 @@ def sync_vectorstore(
             "Verifica que Documentacion/ tenga archivos."
         )
 
-    # Actualizar manifest: agregar nuevos/modificados, quitar eliminados
-    for fuente in nuevos + cambiados:
+    # Actualizar manifest: nuevos/modificados/bootstrap se registran, eliminados se quitan
+    for fuente in nuevos + cambiados + bootstrap:
         manifest[fuente] = {"hash": compute_file_hash(Path(fuente))}
     for fuente in eliminados:
         manifest.pop(fuente, None)

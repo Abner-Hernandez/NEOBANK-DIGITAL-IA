@@ -84,3 +84,36 @@ def test_sync_incremental_full_cycle(tmp_path):
     manifest_final = load_manifest(vs_path.parent / "_manifest.json")
     assert str(archivo2) not in manifest_final
     assert str(archivo1) in manifest_final
+
+
+def test_sync_bootstraps_existing_index_without_manifest(tmp_path, monkeypatch):
+    """
+    Reproduce el bug real: un índice ya existía en disco (construido con
+    código viejo, sin manifest), y luego se corre sync_vectorstore por
+    primera vez. Los archivos YA indexados NO deben duplicarse — deben
+    reconocerse via el propio vectorstore y solo registrarse en el manifest.
+    """
+    vs_path = tmp_path / "vectorstore" / "faiss_index"
+
+    archivo1 = tmp_path / "doc1.txt"
+    archivo1.write_text("Contenido ya indexado previamente", encoding="utf-8")
+    chunk = _make_doc(archivo1, "Contenido ya indexado previamente")
+
+    # Simula un índice preexistente construido SIN pasar por sync (sin manifest)
+    embeddings = DeterministicFakeEmbedding(size=64)
+    from langchain_community.vectorstores import FAISS as FaissDirect
+
+    indice_viejo = FaissDirect.from_documents([chunk], embeddings)
+    vs_path.parent.mkdir(parents=True, exist_ok=True)
+    indice_viejo.save_local(str(vs_path))
+    # deliberadamente NO se crea _manifest.json, para reproducir el bug
+
+    # Ahora corremos sync_vectorstore con ese mismo archivo (sin cambios reales)
+    vs = vectorstore_module.sync_vectorstore(
+        [chunk], vectorstore_path=vs_path, batch_size=10, delay_seconds=0
+    )
+
+    assert len(vs.docstore._dict) == 1  # NO debe duplicarse a 2
+
+    manifest = load_manifest(vs_path.parent / "_manifest.json")
+    assert str(archivo1) in manifest  # se registró retroactivamente
