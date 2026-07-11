@@ -55,11 +55,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS: en producción, restringir allow_origins al dominio real de la app web
-# en vez de "*". Se deja abierto aquí para facilitar desarrollo local.
+# CORS: en producción, define ALLOWED_ORIGINS en .env con el dominio real
+# de tu app web (ej. "https://miapp.com"). Por defecto "*" para desarrollo local.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

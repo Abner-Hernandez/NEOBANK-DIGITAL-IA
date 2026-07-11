@@ -43,6 +43,16 @@ class Settings:
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     LOG_DIR: Path = BASE_DIR / os.getenv("LOG_DIR", "logs")
 
+    # --- CORS ---
+    # Lista separada por comas de orígenes permitidos, ej:
+    # "https://miapp.com,https://staging.miapp.com"
+    # Por defecto "*" (todos) — SOLO apropiado para desarrollo local.
+    ALLOWED_ORIGINS: list[str] = [
+        origen.strip()
+        for origen in os.getenv("ALLOWED_ORIGINS", "*").split(",")
+        if origen.strip()
+    ]
+
     @classmethod
     def validate(cls) -> None:
         """
