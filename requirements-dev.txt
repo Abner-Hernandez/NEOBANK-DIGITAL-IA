@@ -1,0 +1,4 @@
+# === Dependencias SOLO de desarrollo/testing ===
+# No se instalan en producción (OCI). Uso: pip install -r requirements-dev.txt
+pytest==8.3.4
+httpx==0.28.1

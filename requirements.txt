@@ -24,6 +24,10 @@ langchain-google-genai==4.2.7
 faiss-cpu==1.9.0
 tenacity==9.0.0
 
+# --- API ---
+fastapi==0.118.0
+uvicorn[standard]==0.32.1
+
 # --- Procesamiento de documentos ---
 pypdf==5.1.0
 pandas==2.2.3
