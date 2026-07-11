@@ -1,0 +1,32 @@
+services:
+  # Servicio persistente: sirve la API REST. NO reconstruye el índice al
+  # arrancar — solo lo lee del volumen compartido con "indexer".
+  api:
+    build: .
+    container_name: alura-agente-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./vectorstore:/app/vectorstore
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  # Servicio bajo demanda: construye/actualiza el índice FAISS. NO arranca
+  # con `docker compose up` (perfil "tools"); se ejecuta explícitamente:
+  #   docker compose run --rm indexer
+  # o para forzar reconstrucción completa:
+  #   docker compose run --rm indexer python -m scripts.build_index --rebuild
+  indexer:
+    build: .
+    container_name: alura-agente-indexer
+    env_file:
+      - .env
+    volumes:
+      - ./vectorstore:/app/vectorstore
+      - ./Documentacion:/app/Documentacion:ro
+      - ./logs:/app/logs
+    command: ["python", "-m", "scripts.build_index"]
+    profiles:
+      - tools

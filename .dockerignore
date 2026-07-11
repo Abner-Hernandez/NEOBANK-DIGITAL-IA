@@ -1,0 +1,32 @@
+# --- Entornos y secretos (nunca deben entrar a la imagen) ---
+venv/
+.venv/
+env/
+.env
+.env.example
+
+# --- Git ---
+.git/
+.gitignore
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# --- Tests (no se necesitan en runtime) ---
+tests/
+requirements-dev.txt
+
+# --- Datos y artefactos generados (se montan como volumen, no se copian a la imagen) ---
+Documentacion/
+vectorstore/
+logs/*.log
+
+# --- Empaquetado previo / misceláneo ---
+*.zip
+.vscode/
+.idea/
+.DS_Store
+README.md
