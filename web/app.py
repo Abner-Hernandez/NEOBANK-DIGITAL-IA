@@ -2,9 +2,17 @@
 app.py
 ------
 Interfaz de chat de Alura Agente, construida con Streamlit. Consume la API
-FastAPI (Fase 2.4) vía HTTP — este servicio NO importa LangChain ni FAISS
+FastAPI (Fase 2.4) vía HTTP -- este servicio NO importa LangChain ni FAISS
 directamente; es un cliente delgado, lo cual mantiene la imagen liviana y
 desacopla completamente el frontend del motor RAG.
+
+Diseño de UX en dos pestañas:
+- "Preguntar": experiencia simple para el empleado promedio. Sin filtros,
+  sin configuración -- solo escribe y pregunta. Busca en TODO el corpus.
+- "Avanzado": filtros opcionales (categoría, cantidad de fragmentos) para
+  quien quiera afinar la búsqueda. Los ajustes aquí aplican a la siguiente
+  pregunta que se haga en la pestaña "Preguntar" -- ambas comparten la
+  misma conversación (st.session_state.messages).
 """
 
 import os
@@ -68,31 +76,102 @@ def preguntar_al_agente(pregunta: str, categoria: str | None, k: int) -> dict:
         return {"answer": f"⚠️ {detalle}", "sources": []}
 
 
-# ---------------------------------------------------------------------------
-# Barra lateral: filtros de búsqueda
-# ---------------------------------------------------------------------------
-categorias_disponibles = obtener_categorias()
+def renderizar_historial() -> None:
+    """Dibuja los mensajes ya existentes en la conversación (compartida entre pestañas)."""
+    for mensaje in st.session_state.messages:
+        with st.chat_message(mensaje["role"]):
+            st.markdown(mensaje["content"])
+            if mensaje.get("sources"):
+                with st.expander("📄 Fuentes consultadas"):
+                    for fuente in mensaje["sources"]:
+                        st.markdown(
+                            f"- **{fuente['source']}** _(categoría: {fuente['categoria']})_"
+                        )
 
-with st.sidebar:
-    st.header("⚙️ Filtros de búsqueda")
 
-    categoria_seleccionada = st.selectbox(
+# ---------------------------------------------------------------------------
+# Estado compartido (persiste entre ambas pestañas)
+# ---------------------------------------------------------------------------
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "categoria_filtro" not in st.session_state:
+    st.session_state.categoria_filtro = "Todas"
+if "k_fragmentos" not in st.session_state:
+    st.session_state.k_fragmentos = 4
+
+st.title("💬 Alura Agente")
+st.caption("Asistente virtual de documentos internos — NeoBank Digital")
+
+tab_preguntar, tab_avanzado = st.tabs(["💬 Preguntar", "⚙️ Avanzado"])
+
+
+# ---------------------------------------------------------------------------
+# Pestaña principal: experiencia simple para el empleado
+# ---------------------------------------------------------------------------
+with tab_preguntar:
+    renderizar_historial()
+
+    pregunta_usuario = st.chat_input("Escribe tu pregunta sobre los documentos internos...")
+
+    if pregunta_usuario:
+        st.session_state.messages.append({"role": "user", "content": pregunta_usuario})
+        with st.chat_message("user"):
+            st.markdown(pregunta_usuario)
+
+        with st.chat_message("assistant"):
+            with st.spinner("Consultando documentos internos..."):
+                resultado = preguntar_al_agente(
+                    pregunta_usuario,
+                    st.session_state.categoria_filtro,
+                    st.session_state.k_fragmentos,
+                )
+
+            st.markdown(resultado["answer"])
+
+            fuentes = resultado.get("sources", [])
+            if fuentes:
+                with st.expander("📄 Fuentes consultadas"):
+                    for fuente in fuentes:
+                        st.markdown(
+                            f"- **{fuente['source']}** _(categoría: {fuente['categoria']})_"
+                        )
+
+        st.session_state.messages.append(
+            {"role": "assistant", "content": resultado["answer"], "sources": fuentes}
+        )
+
+
+# ---------------------------------------------------------------------------
+# Pestaña avanzada: filtros opcionales, no requeridos para usar el chat
+# ---------------------------------------------------------------------------
+with tab_avanzado:
+    st.markdown(
+        "Estos ajustes aplican a tu **próxima** pregunta en la pestaña "
+        "**💬 Preguntar**. No son necesarios para usar el asistente."
+    )
+
+    categorias_disponibles = obtener_categorias()
+
+    st.session_state.categoria_filtro = st.selectbox(
         "Categoría",
         options=["Todas"] + categorias_disponibles,
+        index=(["Todas"] + categorias_disponibles).index(st.session_state.categoria_filtro)
+        if st.session_state.categoria_filtro in (["Todas"] + categorias_disponibles)
+        else 0,
         help="Restringe la búsqueda a una categoría específica del corpus.",
     )
 
-    k = st.slider(
+    st.session_state.k_fragmentos = st.slider(
         "Fragmentos a recuperar",
         min_value=1,
         max_value=10,
-        value=4,
+        value=st.session_state.k_fragmentos,
         help="Cuántos fragmentos de contexto se le pasan al modelo por consulta.",
     )
 
     st.divider()
 
-    if st.button("🗑️ Limpiar conversación", use_container_width=True):
+    if st.button("🗑️ Limpiar conversación"):
         st.session_state.messages = []
         st.rerun()
 
@@ -101,48 +180,3 @@ with st.sidebar:
             "No se pudieron cargar las categorías. "
             "¿Está la API corriendo y el índice construido?"
         )
-
-
-# ---------------------------------------------------------------------------
-# Interfaz principal de chat
-# ---------------------------------------------------------------------------
-st.title("💬 Alura Agente")
-st.caption("Asistente virtual de documentos internos — NeoBank Digital")
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-for mensaje in st.session_state.messages:
-    with st.chat_message(mensaje["role"]):
-        st.markdown(mensaje["content"])
-        if mensaje.get("sources"):
-            with st.expander("📄 Fuentes consultadas"):
-                for fuente in mensaje["sources"]:
-                    st.markdown(
-                        f"- **{fuente['source']}** _(categoría: {fuente['categoria']})_"
-                    )
-
-pregunta_usuario = st.chat_input("Escribe tu pregunta sobre los documentos internos...")
-
-if pregunta_usuario:
-    st.session_state.messages.append({"role": "user", "content": pregunta_usuario})
-    with st.chat_message("user"):
-        st.markdown(pregunta_usuario)
-
-    with st.chat_message("assistant"):
-        with st.spinner("Consultando documentos internos..."):
-            resultado = preguntar_al_agente(pregunta_usuario, categoria_seleccionada, k)
-
-        st.markdown(resultado["answer"])
-
-        fuentes = resultado.get("sources", [])
-        if fuentes:
-            with st.expander("📄 Fuentes consultadas"):
-                for fuente in fuentes:
-                    st.markdown(
-                        f"- **{fuente['source']}** _(categoría: {fuente['categoria']})_"
-                    )
-
-    st.session_state.messages.append(
-        {"role": "assistant", "content": resultado["answer"], "sources": fuentes}
-    )
