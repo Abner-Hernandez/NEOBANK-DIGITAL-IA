@@ -1,0 +1,5 @@
+# === Alura Agente — Dependencias del servicio web (Streamlit) ===
+# Deliberadamente mínimo: este servicio es un cliente HTTP delgado,
+# no necesita LangChain, FAISS ni ninguna dependencia del motor RAG.
+streamlit==1.40.2
+requests==2.32.3
