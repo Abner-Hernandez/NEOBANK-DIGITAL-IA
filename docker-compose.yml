@@ -1,3 +1,7 @@
+networks:
+  alura-network:
+    driver: bridge
+
 services:
   # Servicio persistente: sirve la API REST. NO reconstruye el índice al
   # arrancar — solo lo lee del volumen compartido con "indexer".
@@ -11,6 +15,8 @@ services:
     volumes:
       - ./vectorstore:/app/vectorstore
       - ./logs:/app/logs
+    networks:
+      - alura-network
     restart: unless-stopped
 
   # Servicio bajo demanda: construye/actualiza el índice FAISS. NO arranca
@@ -27,6 +33,25 @@ services:
       - ./vectorstore:/app/vectorstore
       - ./Documentacion:/app/Documentacion:ro
       - ./logs:/app/logs
+    networks:
+      - alura-network
     command: ["python", "-m", "scripts.build_index"]
     profiles:
       - tools
+
+  # Interfaz de chat (Streamlit). Se comunica con "api" por su nombre de
+  # servicio dentro de la red interna "alura-network" (DNS de Docker
+  # Compose), NO por localhost — por eso API_URL=http://api:8000.
+  web:
+    build: ./web
+    container_name: alura-agente-web
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000
+    networks:
+      - alura-network
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
