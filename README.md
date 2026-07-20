@@ -1,8 +1,16 @@
-# 💬 Alura Agente
+# 💬 NEOBANK DIGITAL
 
 Agente de IA basado en RAG (*Retrieval-Augmented Generation*) que responde preguntas en lenguaje natural sobre documentos internos de la organización (políticas, procedimientos, términos y condiciones, matrices legales, etc.), expuesto como API REST y como interfaz de chat web para empleados.
 
 Construido con **Python, LangChain, Google Gemini y FAISS**, contenedorizado con **Docker**, y desplegado en **Oracle Cloud Infrastructure (OCI Compute, Always Free tier)**.
+
+---
+
+## Demo: sistema desplegado y funcionando
+
+Instancia OCI Compute (`VM.Standard.A1.Flex`, 2 OCPU / 12GB, Always Free tier) corriendo el stack completo, respondiendo preguntas reales sobre el corpus interno con sus fuentes citadas:
+
+![Demo del agente desplegado en OCI, respondiendo preguntas sobre política de vacaciones y límites de transferencia con fuentes citadas](docs/screenshots/demo-despliegue-oci.png)
 
 ---
 
